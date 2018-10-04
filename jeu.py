@@ -10,6 +10,8 @@ import sys
 from PyQt4.QtCore import *
 from PyQt4.QtGui import *
 from IPython.display import clear_output
+#from shapely.geometry import Point
+#from shapely.geometry.polygon import Polygon
 
 class Jeu(QMainWindow):
     
@@ -34,6 +36,7 @@ class Jeu(QMainWindow):
         #self.monstre = Monstre()
         
         self.px = px
+        self.pause = False
         super().__init__()
         self.setWindowTitle("Mamba")
         self.environnement = Environnement(self,self.map_zones,self.map_joueurs,self.px)
@@ -49,11 +52,10 @@ class Jeu(QMainWindow):
         
         if event.isAutoRepeat():
             event.ignore()
-        
-        
+           
         key = event.key()
         old_direction = self.serpent.old_direction
-        
+            
         if key == Qt.Key_Z:
             new_direction = 'haut' #variabe contenant la nouvelle direction 
         elif key == Qt.Key_D:
@@ -64,19 +66,44 @@ class Jeu(QMainWindow):
             new_direction = 'gauche'
         elif key == Qt.Key_Escape:
             self.close()
+        elif key == Qt.Key_P: # On passe le jeu en pause / continue
+            self.pause = not self.pause
+            new_direction = old_direction # le serpent continue dans la meme direction après la pause.
         else:
             event.ignore()
         
-        commandes_invalides = [('gauche','droite'),('droite','gauche'),('bas','haut'),('haut','bas')]
-        if not (old_direction,new_direction) in commandes_invalides:
-            self.serpent.change_direction(new_direction)
+        if not self.pause:
+            
+            commandes_invalides = [('gauche','droite'),('droite','gauche'),('bas','haut'),('haut','bas')]
+            if not (old_direction,new_direction) in commandes_invalides:
+                self.serpent.change_direction(new_direction)
+                
         event.accept()
         
     def update(self):
         
-        self.serpent.deplace(self.map_joueurs,self.map_zones,self.environnement)
+        if not self.pause:
+            
+            self.serpent.deplace(self.map_joueurs,self.map_zones,self.environnement)
+            qApp.processEvents() # Nécéssaire pour éviter le clignotement entre deux frames.
+            self.setCentralWidget(self.environnement)
+            
+            if self.serpent.etat == 2: # On rentre à nouveau dans la zone safe donc on grise la zone dessinée.
+                self.grise_zone()
+                self.serpent.etat = 0
+        
+    def grise_zone(self):
+        
+        for case in self.serpent.corps:
+            self.map_zones[case] = 0
+        
+        #polygon = Polygon(self.serpent.corps)
+            
+        self.environnement.carte.grise_dessin(self.serpent.corps,self.environnement)
         qApp.processEvents() # Nécéssaire pour éviter le clignotement entre deux frames.
         self.setCentralWidget(self.environnement)
+        
+        self.serpent.corps = []
         
 class Serpent:
     
@@ -145,18 +172,11 @@ class Serpent:
         if new_zone:
             self.corps.append(new_position)
         
-        if self.etat == 2: # On rentre à nouveau dans la zone safe donc on grise la zone dessinée.
-            self.grise_zone()
-            self.etat = 0
-        
         environnement.carte.redessine(old_position,new_position,old_zone,new_zone,environnement)
         
         self.old_direction = self.direction_instant
         
     def test_collisions(self):
-        pass
-
-    def grise_zone(self):
         pass
     
 class Environnement(QGraphicsView):
@@ -213,8 +233,21 @@ class Carte(QGraphicsScene):
         
         environnement.setScene(self)
         
+    def grise_dessin(self,zone_a_griser,environnement):
         
+        px = self.px
+        
+        for case in zone_a_griser:
+            i,k = case
+            self.addRect(k*px,i*px,px,px,self.stylo,self.brosse_grise)
+        
+        environnement.setScene(self)    
+            
 """ FONCTIONS SECONDAIRES """
+
+def fill_contours(array):
+    return np.maximum.accumulate(array,1) & \
+           np.maximum.accumulate(array[:,::-1],1)[:,::-1]
 
 def init_map(nl,nc,marge,type):
     """
@@ -265,9 +298,12 @@ def main(nl,nc,marge,px):
     
     app = QApplication(sys.argv)
     jeu = Jeu(nl,nc,marge,px)
+    M = jeu.map_zones
     jeu.show()
     #jeu.resize(1600,900)
     app.exec_()
     #sys.exit(app.exec_())
+    return M
+
     
-main(20,40,2,20)
+M = main(20,40,2,20)
