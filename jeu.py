@@ -5,13 +5,27 @@ Spyder Editor
 This is a temporary script file.
 """
 
+
+
+# =============================================================================
+#                       Importation de modules
+# =============================================================================
+
+
+
 import numpy as np
 import sys
 from PyQt4.QtCore import *
 from PyQt4.QtGui import *
 from IPython.display import clear_output
-#from shapely.geometry import Point
-#from shapely.geometry.polygon import Polygon
+
+
+
+# =============================================================================
+#                               Classe Jeu
+# =============================================================================
+
+
 
 class Jeu(QMainWindow):
     
@@ -32,7 +46,7 @@ class Jeu(QMainWindow):
         self.map_joueurs = init_map(nl,nc,marge,type = 'joueurs')
         self.v_NaN = np.empty((nl,1))
         self.v_NaN[:] = np.nan
-        self.serpent = Serpent()
+        self.serpent = Personnage(position_initiale=(0,0),direction_initiale='droite',type_personnage='Serpent')
         #self.monstre = Monstre()
         
         self.px = px
@@ -94,23 +108,32 @@ class Jeu(QMainWindow):
         
     def grise_zone(self):
         
+        path = path_finding(self.map_zones,self.serpent.depart,self.serpent.arrivee)
+                            
         for case in self.serpent.corps:
             self.map_zones[case] = 0
         
-        #polygon = Polygon(self.serpent.corps)
-            
-        self.environnement.carte.grise_dessin(self.serpent.corps,self.environnement)
+        #polygon = Polygon(self.serpent.corps)        
+        self.environnement.carte.grise_dessin(self.serpent.corps+path,self.environnement)
         qApp.processEvents() # Nécéssaire pour éviter le clignotement entre deux frames.
         self.setCentralWidget(self.environnement)
         
         self.serpent.corps = []
         
-class Serpent:
+
+
+# =============================================================================
+#                            Classe Personnage
+# =============================================================================
+
+
+
+class Personnage():
     
-    def __init__(self):
+    def __init__(self,position_initiale,direction_initiale,type_personnage):
             
         """
-        Crée le serpent.
+        Crée le monstre.
         
         Attributs
         ---------
@@ -121,11 +144,14 @@ class Serpent:
         
         """
         
-        self.position = (0,0)
-        self.direction_instant = 'droite' #la direction à un instant t
+        self.position = position_initiale
+        self.direction_instant = direction_initiale #la direction à un instant t
         self.corps = []
+        self.type = type_personnage
+        self.old_direction = '' # direction lors de la dernière update de la map 
         self.etat = 0
-        self.old_direction = '' #diection lors de la dernière update de la map 
+        self.depart = (0,0)
+        self.arrivee = (0,0)
         
     def change_direction(self,direction):
         
@@ -135,49 +161,61 @@ class Serpent:
         
         """ Modifie les matrices map_zones et map_joueurs lors du déplacement du serpent. """
         
-        direction = self.direction_instant
-        x,y = self.position
-        old_position = x,y
-        nl,nc = map_joueurs.shape
-    
-        if direction == 'droite':
-            self.position = x,(y+1)%(nc)
+        if self.type == 'Serpent':
             
-        if direction == 'bas':
-            self.position = (x+1)%(nl),y
+            direction = self.direction_instant
+            x,y = self.position
+            old_position = x,y
+            nl,nc = map_joueurs.shape
+        
+            if direction == 'droite':
+                self.position = x,(y+1)%(nc)
+                
+            if direction == 'bas':
+                self.position = (x+1)%(nl),y
+                
+            if direction == 'gauche':
+                self.position = x,(y-1)%(nc)
+                
+            if direction == 'haut':
+                self.position = (x-1)%(nl),y
             
-        if direction == 'gauche':
-            self.position = x,(y-1)%(nc)
+            self.test_collisions() # Verifie que le serpent ne meurt pas pendant son déplacement.
+            new_position = self.position        
+            old_zone,new_zone = map_zones[old_position],map_zones[new_position]
             
-        if direction == 'haut':
-            self.position = (x-1)%(nl),y
-        
+            if  old_zone != new_zone : # Changement de zone.
+                self.etat += 1
+                if self.etat == 1:
+                    self.depart = old_position
+                else:
+                    self.arrivee = new_position
             
-        
-        self.test_collisions() # Verifie que le serpent ne meurt pas pendant son déplacement.
-        new_position = self.position        
-        old_zone,new_zone = map_zones[old_position],map_zones[new_position]
-        
-        if  old_zone != new_zone : # Changement de zone.
-            self.etat += 1
-        
-        if old_zone:
-            map_joueurs[old_position] = -1
-        
-        else:
-            map_joueurs[old_position] = 0
-        
-        map_joueurs[new_position] = 1
-        
-        if new_zone:
-            self.corps.append(new_position)
-        
-        environnement.carte.redessine(old_position,new_position,old_zone,new_zone,environnement)
-        
-        self.old_direction = self.direction_instant
+            if old_zone:
+                map_joueurs[old_position] = -1
+            
+            else:
+                map_joueurs[old_position] = 0
+            
+            map_joueurs[new_position] = 1
+            
+            if new_zone:
+                self.corps.append(new_position)
+            
+            environnement.carte.redessine(old_position,new_position,old_zone,new_zone,environnement)
+            
+            self.old_direction = self.direction_instant
         
     def test_collisions(self):
         pass
+    
+    
+    
+# =============================================================================
+#                            Classe Environnement
+# =============================================================================
+        
+    
     
 class Environnement(QGraphicsView):
     
@@ -202,6 +240,7 @@ class Carte(QGraphicsScene):
         self.brosse_blanche = QBrush(QColor(255,255,255),Qt.SolidPattern)
         self.brosse_marron = QBrush(QColor(88,41,0),Qt.SolidPattern)
         self.brosse_rouge = QBrush(QColor(255,0,0),Qt.SolidPattern)
+        self.brosse_verte = QBrush(QColor(0,255,0),Qt.SolidPattern)
         self.stylo = QPen(Qt.black,1,Qt.SolidLine)
         self.px = px
         
@@ -239,15 +278,22 @@ class Carte(QGraphicsScene):
         
         for case in zone_a_griser:
             i,k = case
-            self.addRect(k*px,i*px,px,px,self.stylo,self.brosse_grise)
+            self.addRect(k*px,i*px,px,px,self.stylo,self.brosse_verte)
         
         environnement.setScene(self)    
             
-""" FONCTIONS SECONDAIRES """
+
+
+# =============================================================================
+#                           Fonctions secondaires
+# =============================================================================
+
+
 
 def fill_contours(array):
     return np.maximum.accumulate(array,1) & \
            np.maximum.accumulate(array[:,::-1],1)[:,::-1]
+
 
 def init_map(nl,nc,marge,type):
     """
@@ -291,6 +337,33 @@ def init_map(nl,nc,marge,type):
         print('Erreur')
         
     return M
+
+
+def path_finding(grid,depart,arrivee):
+    
+    queue = [[depart]]
+    seen = set([depart])
+    nl,nc = grid.shape
+    
+    while queue:       
+        
+        path = queue.pop(0)
+        x, y = path[-1]
+        
+        if (x,y) == arrivee:
+            return path
+        
+        for x2, y2 in ((x+1,y), (x-1,y), (x,y+1), (x,y-1)):            
+            if 0 <= x2 < nl and 0 <= y2 < nc and grid[x2][y2] != 1 and (x2, y2) not in seen:
+                queue.append(path + [(x2, y2)])
+                seen.add((x2, y2))
+
+
+# =============================================================================
+#                               Fonction Main
+# =============================================================================
+
+
 
 def main(nl,nc,marge,px):
     
