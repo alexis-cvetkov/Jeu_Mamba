@@ -18,6 +18,8 @@ import sys
 from PyQt4.QtCore import *
 from PyQt4.QtGui import *
 from IPython.display import clear_output
+from shapely.geometry import Point
+from shapely.geometry.polygon import Polygon
 
 
 
@@ -58,7 +60,7 @@ class Jeu(QMainWindow):
         
         self.timer = QTimer()
         self.timer.timeout.connect(self.update)
-        self.timer.start(10000//px)
+        self.timer.start(5000//px)
         
     def keyPressEvent(self, event):
         
@@ -109,12 +111,27 @@ class Jeu(QMainWindow):
     def grise_zone(self):
         
         path = path_finding(self.map_zones,self.serpent.depart,self.serpent.arrivee)
-                            
+        path.reverse()
+        
         for case in self.serpent.corps:
             self.map_zones[case] = 0
         
-        #polygon = Polygon(self.serpent.corps)        
-        self.environnement.carte.grise_dessin(self.serpent.corps+path,self.environnement)
+        contour = self.serpent.corps + path # L'ordre des points est important pour delimiter le polygone correctement.
+        polygon = Polygon(contour)
+        
+        L,C = zone_a_tester(contour)
+        nl,nc = L.shape 
+        points_a_griser = self.serpent.corps
+        
+        for i in range(nl):
+            for k in range(nc):
+                coordonnees = L[i,k],C[i,k]
+                point = Point(coordonnees)
+                if polygon.contains(point):
+                    points_a_griser.append(coordonnees)
+                    self.map_zones[coordonnees] = 0
+        
+        self.environnement.carte.grise_dessin(points_a_griser,self.environnement)
         qApp.processEvents() # Nécéssaire pour éviter le clignotement entre deux frames.
         self.setCentralWidget(self.environnement)
         
@@ -278,7 +295,7 @@ class Carte(QGraphicsScene):
         
         for case in zone_a_griser:
             i,k = case
-            self.addRect(k*px,i*px,px,px,self.stylo,self.brosse_verte)
+            self.addRect(k*px,i*px,px,px,self.stylo,self.brosse_grise)
         
         environnement.setScene(self)    
             
@@ -358,7 +375,20 @@ def path_finding(grid,depart,arrivee):
                 queue.append(path + [(x2, y2)])
                 seen.add((x2, y2))
 
-
+def zone_a_tester(contour):
+    
+    lignes = [position[0] for position in contour]
+    colonnes = [position[1] for position in contour]
+    
+    l_min,l_max = min(lignes),max(lignes)
+    c_min,c_max = min(colonnes),max(colonnes)
+    
+    l = np.arange(l_min,l_max+1)
+    c = np.arange(c_min,c_max+1)    
+    L,C = np.meshgrid(l,c)
+    
+    return L,C
+    
 # =============================================================================
 #                               Fonction Main
 # =============================================================================
