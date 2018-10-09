@@ -20,7 +20,7 @@ from PyQt4.QtGui import *
 from IPython.display import clear_output
 from shapely.geometry import Point
 from shapely.geometry.polygon import Polygon
-
+#import timeit
 
 
 # =============================================================================
@@ -44,12 +44,12 @@ class Jeu(QMainWindow):
         serpent : cf class Serpent
         px : taille d'une case du jeu en pixels.
         """
-        self.map_zones = init_map(nl,nc,marge,type = 'zones')
-        self.map_joueurs = init_map(nl,nc,marge,type = 'joueurs')
-        self.v_NaN = np.empty((nl,1))
-        self.v_NaN[:] = np.nan
-        self.serpent = Personnage(position_initiale=(0,0),direction_initiale='droite',type_personnage='Serpent')
-        #self.monstre = Monstre()
+        
+        pos_serpent,pos_monstre = (0,0),(nl//2,nc//2)
+        self.serpent = Personnage(pos_serpent,direction_initiale='droite',type_personnage='Serpent')
+        #self.monstre = Personnage(pos_monstre,direction_initiale='gauche',type_personnage='Monstre') # On place le monstre au centre de la carte.
+        self.map_zones = init_map(nl,nc,marge,pos_serpent,pos_monstre,type = 'zones')
+        self.map_joueurs = init_map(nl,nc,marge,pos_serpent,pos_monstre,type = 'joueurs')
         
         self.px = px
         self.pause = False
@@ -60,7 +60,7 @@ class Jeu(QMainWindow):
         
         self.timer = QTimer()
         self.timer.timeout.connect(self.update)
-        self.timer.start(5000//px)
+        self.timer.start(5000//nc)
         
     def keyPressEvent(self, event):
         
@@ -71,35 +71,37 @@ class Jeu(QMainWindow):
            
         key = event.key()
         old_direction = self.serpent.old_direction
-            
-        if key == Qt.Key_Z:
-            new_direction = 'haut' #variabe contenant la nouvelle direction 
-        elif key == Qt.Key_D:
-            new_direction = 'droite'
-        elif key == Qt.Key_S:
-            new_direction = 'bas'
-        elif key == Qt.Key_Q:
-            new_direction = 'gauche'
-        elif key == Qt.Key_Escape:
-            self.close()
-        elif key == Qt.Key_P: # On passe le jeu en pause / continue
-            self.pause = not self.pause
-            new_direction = old_direction # le serpent continue dans la meme direction après la pause.
-        else:
-            event.ignore()
         
-        if not self.pause:
+        if key == Qt.Key_Escape:
+            self.close()
+        
+        elif key == Qt.Key_P: # On passe le jeu en pause / continue
+            self.pause = 1 - self.pause
+        
+        else:            
+            
+            if key == Qt.Key_Z:
+                new_direction = 'haut' #variabe contenant la nouvelle direction 
+            elif key == Qt.Key_D:
+                new_direction = 'droite'
+            elif key == Qt.Key_S:
+                new_direction = 'bas'
+            elif key == Qt.Key_Q:
+                new_direction = 'gauche'
             
             commandes_invalides = [('gauche','droite'),('droite','gauche'),('bas','haut'),('haut','bas')]
-            if not (old_direction,new_direction) in commandes_invalides:
+            if not (self.pause  or (old_direction,new_direction) in commandes_invalides):
                 self.serpent.change_direction(new_direction)
+            
+            else:
+                event.ignore()
                 
-        event.accept()
         
     def update(self):
         
         if not self.pause:
             
+            #self.monstre.deplace(self.map_joueurs,self.map_zones,self.environnement)
             self.serpent.deplace(self.map_joueurs,self.map_zones,self.environnement)
             qApp.processEvents() # Nécéssaire pour éviter le clignotement entre deux frames.
             self.setCentralWidget(self.environnement)
@@ -122,7 +124,6 @@ class Jeu(QMainWindow):
         L,C = zone_a_tester(contour)
         nl,nc = L.shape 
         points_a_griser = self.serpent.corps
-        
         for i in range(nl):
             for k in range(nc):
                 coordonnees = L[i,k],C[i,k]
@@ -130,6 +131,7 @@ class Jeu(QMainWindow):
                 if polygon.contains(point):
                     points_a_griser.append(coordonnees)
                     self.map_zones[coordonnees] = 0
+                    pass
         
         self.environnement.carte.grise_dessin(points_a_griser,self.environnement)
         qApp.processEvents() # Nécéssaire pour éviter le clignotement entre deux frames.
@@ -162,7 +164,7 @@ class Personnage():
         """
         
         self.position = position_initiale
-        self.direction_instant = direction_initiale #la direction à un instant t
+        self.direction_instant = direction_initiale # la direction à un instant t
         self.corps = []
         self.type = type_personnage
         self.old_direction = '' # direction lors de la dernière update de la map 
@@ -177,40 +179,39 @@ class Personnage():
     def deplace(self,map_joueurs,map_zones,environnement):
         
         """ Modifie les matrices map_zones et map_joueurs lors du déplacement du serpent. """
+            
+        direction = self.direction_instant
+        x,y = self.position
+        old_position = x,y
+        nl,nc = map_joueurs.shape
+    
+        if direction == 'droite':
+            self.position = x,(y+1)%(nc)
+            
+        if direction == 'bas':
+            self.position = (x+1)%(nl),y
+            
+        if direction == 'gauche':
+            self.position = x,(y-1)%(nc)
+            
+        if direction == 'haut':
+            self.position = (x-1)%(nl),y
         
-        if self.type == 'Serpent':
-            
-            direction = self.direction_instant
-            x,y = self.position
-            old_position = x,y
-            nl,nc = map_joueurs.shape
+        self.test_collisions() # Verifie que le serpent ne meurt pas pendant son déplacement.
+        new_position = self.position        
+        old_zone,new_zone = map_zones[old_position],map_zones[new_position]
         
-            if direction == 'droite':
-                self.position = x,(y+1)%(nc)
-                
-            if direction == 'bas':
-                self.position = (x+1)%(nl),y
-                
-            if direction == 'gauche':
-                self.position = x,(y-1)%(nc)
-                
-            if direction == 'haut':
-                self.position = (x-1)%(nl),y
+        if  old_zone != new_zone : # Changement de zone.
             
-            self.test_collisions() # Verifie que le serpent ne meurt pas pendant son déplacement.
-            new_position = self.position        
-            old_zone,new_zone = map_zones[old_position],map_zones[new_position]
-            
-            if  old_zone != new_zone : # Changement de zone.
-                self.etat += 1
-                if self.etat == 1:
-                    self.depart = old_position
-                else:
-                    self.arrivee = new_position
-            
+            self.etat += 1
+            if self.etat == 1:
+                self.depart = old_position
+            else:
+                self.arrivee = new_position
+        
+        if self.type == 'Serpent':            
             if old_zone:
-                map_joueurs[old_position] = -1
-            
+                map_joueurs[old_position] = -1            
             else:
                 map_joueurs[old_position] = 0
             
@@ -218,10 +219,14 @@ class Personnage():
             
             if new_zone:
                 self.corps.append(new_position)
-            
-            environnement.carte.redessine(old_position,new_position,old_zone,new_zone,environnement)
-            
-            self.old_direction = self.direction_instant
+        
+        elif self.type == 'Monstre':            
+            map_joueurs[old_position] = 0
+            map_joueurs[new_position] = 2
+        
+        environnement.carte.redessine(old_position,new_position,old_zone,new_zone,environnement)
+        
+        self.old_direction = self.direction_instant
         
     def test_collisions(self):
         pass
@@ -312,7 +317,7 @@ def fill_contours(array):
            np.maximum.accumulate(array[:,::-1],1)[:,::-1]
 
 
-def init_map(nl,nc,marge,type):
+def init_map(nl,nc,marge,pos_serpent,pos_monstre,type):
     """
     Fonction qui initialise les matrices correspondant au plateau de jeu.
     
@@ -348,7 +353,8 @@ def init_map(nl,nc,marge,type):
         
     elif type == 'joueurs':
         M = np.zeros((nl,nc),dtype=int)
-        M[0,0] = 1
+        M[pos_serpent] = 1
+        M[pos_monstre] = 2
         
     else:
         print('Erreur')
@@ -409,4 +415,4 @@ def main(nl,nc,marge,px):
     return M
 
     
-M = main(20,40,2,20)
+M = main(100,200,10,5)
