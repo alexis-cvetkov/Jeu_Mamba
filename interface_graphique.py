@@ -1,10 +1,158 @@
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Spyder Editor
+Created on Thu Jan 10 14:35:49 2019
 
-This is a temporary script file.
+@author: alexis
 """
+import sys
+from PyQt5.QtCore import *
+from PyQt5.QtGui import *
+from PyQt5.QtWidgets import *
 
+class InterfaceJeu(QMainWindow):
+    
+    def __init__(self,screen_width,screen_height):
+        
+        super().__init__()
+        self.setWindowTitle('Menu du jeu MAMBA')        
+        self.menu = MenuJeu(self)
+        self.setCentralWidget(self.menu)
+        self.screen_width = screen_width
+        self.screen_height = screen_height
+        
+class MenuJeu(QWidget):
+    
+    def __init__(self, parent):
+        
+        super().__init__(parent)
+        
+        self.parent = parent        
+        self.jouer = QPushButton('Jouer')
+        self.options = QPushButton('Options')
+        self.params = OptionsJeu(self)
+        self.quitter = QPushButton('Quitter')        
+        
+        self.jouer.clicked.connect(self.lance_jeu)
+        self.options.clicked.connect(self.affiche_options)
+        self.quitter.clicked.connect(parent.close)
+        
+        layoutV = QVBoxLayout(self)
+        layoutV.addWidget(self.jouer)
+        layoutV.addWidget(self.options)
+        layoutV.addWidget(self.params)
+        layoutV.addWidget(self.quitter)
+        
+        self.setLayout(layoutV)
+        self.params.hide()
+        
+    def lance_jeu(self):
+        
+        px_size = self.params.get_px_size()
+        vitesses = self.params.get_vitesses()
+        w,h = self.parent.screen_width,self.parent.screen_height
+        self.parent.jeu = Jeu(w,h,px_size,vitesses,self.parent)
+        self.parent.jeu.showFullScreen()
+        
+    def affiche_options(self):
+        
+        if self.params.isVisible():
+            self.params.hide()
+        else:
+            self.params.show()
+    
+class OptionsJeu(QWidget):
+    
+    def __init__(self, parent):
+        
+        super().__init__(parent)
+        grid = QGridLayout()
+        
+        box1 = QGroupBox(self)
+        box1.setTitle('Taille des cases:')
+        box1.setAlignment(Qt.AlignCenter)
+        rbg_taille = QButtonGroup(self)
+        self.rb1_taille = QRadioButton('Petite')
+        self.rb2_taille = QRadioButton('Moyenne')
+        self.rb2_taille.setChecked(True)
+        self.rb3_taille = QRadioButton('Grande')
+        rbg_taille.addButton(self.rb1_taille)
+        rbg_taille.addButton(self.rb2_taille)
+        rbg_taille.addButton(self.rb3_taille)
+        layoutH1 = QHBoxLayout()
+        layoutH1.addWidget(self.rb1_taille)
+        layoutH1.addWidget(self.rb2_taille)
+        layoutH1.addWidget(self.rb3_taille)
+        box1.setLayout(layoutH1)
+        
+        box2 = QGroupBox(self)
+        box2.setTitle('Contrôle du serpent:')
+        box2.setAlignment(Qt.AlignCenter)
+        rbg_cs = QButtonGroup(self)
+        self.rb1_cs = QRadioButton('Humain')
+        self.rb1_cs.setChecked(True)
+        self.rb2_cs = QRadioButton('IA basique')
+        self.rb3_cs = QRadioButton('IA avancée')
+        rbg_cs.addButton(self.rb1_cs)
+        rbg_cs.addButton(self.rb2_cs)
+        rbg_cs.addButton(self.rb3_cs)
+        layoutH2 = QHBoxLayout()
+        layoutH2.addWidget(self.rb1_cs)
+        layoutH2.addWidget(self.rb2_cs)
+        layoutH2.addWidget(self.rb3_cs)
+        box2.setLayout(layoutH2)
+        
+        box3 = QGroupBox()
+        box3.setTitle('Contrôle du monstre:')
+        box3.setAlignment(Qt.AlignCenter)
+        rbg_cm = QButtonGroup(self)
+        self.rb1_cm = QRadioButton('Humain')
+        self.rb2_cm = QRadioButton('IA basique')
+        self.rb2_cm.setChecked(True)
+        self.rb3_cm = QRadioButton('IA avancée')
+        layoutH3 = QHBoxLayout()
+        rbg_cm.addButton(self.rb1_cm)
+        rbg_cm.addButton(self.rb2_cm)
+        rbg_cm.addButton(self.rb3_cm)
+        layoutH3.addWidget(self.rb1_cm)
+        layoutH3.addWidget(self.rb2_cm)
+        layoutH3.addWidget(self.rb3_cm)
+        box3.setLayout(layoutH3)
+        
+        
+        box4 = QGroupBox()
+        box4.setTitle('Vitesses des personnages (%)')
+        box4.setAlignment(Qt.AlignCenter)
+        self.e1 = QLineEdit()
+        self.e2 = QLineEdit()
+        self.e1.setText('1')
+        self.e2.setText('1')
+        flo = QFormLayout()
+        flo.addRow('Serpent:', self.e1)
+        flo.addRow('Monstre:', self.e2)
+        box4.setLayout(flo)
+        
+        grid.setVerticalSpacing(30)
+        grid.addWidget(box1)
+        grid.addWidget(box2)
+        grid.addWidget(box3)
+        grid.addWidget(box4)
+        self.setLayout(grid)
+
+    def get_px_size(self):
+        
+        px_size = 0
+        if self.rb1_taille.isChecked():
+            px_size = 8
+        elif self.rb2_taille.isChecked():
+            px_size = 10
+        elif self.rb3_taille.isChecked():
+            px_size = 15            
+        return px_size
+
+    def get_vitesses(self):
+        
+        return float(self.e1.text()),float(self.e2.text())
 
 
 # =============================================================================
@@ -23,7 +171,7 @@ from IPython.display import clear_output
 from shapely.geometry import Point
 from shapely.geometry.polygon import Polygon
 
-#import timeit
+import time
 
 # =============================================================================
 #                               Classe Jeu
@@ -31,7 +179,7 @@ from shapely.geometry.polygon import Polygon
 
 class Jeu(QMainWindow):
     
-    def __init__(self,nl,nc,marge,px):
+    def __init__(self,width,height,px,vitesses,parent = None):
         
         """
         Crée un objet de la classe Jeu.
@@ -46,6 +194,8 @@ class Jeu(QMainWindow):
         
         """
         
+        nl,nc = int(0.8*height/px),int(0.8*width/px)
+        marge = nc//10
         pos_serpent,pos_monstre = (0,0),(nl//2,nc//2)
         self.serpent = Personnage(pos_serpent,direction_initiale=(0,1),type_personnage='Serpent')
         self.monstre = Personnage(pos_monstre,direction_initiale=(0,-1),type_personnage='Monstre') # On place le monstre au centre de la carte.
@@ -54,14 +204,21 @@ class Jeu(QMainWindow):
         
         self.px = px
         self.pause = False
-        super().__init__()
+        super().__init__(parent)
         self.setWindowTitle("Mamba")
         self.environnement = Environnement(self,self.map_zones,self.map_joueurs,self.px)
         self.setCentralWidget(self.environnement)
         
-        self.timer = QTimer()
-        self.timer.timeout.connect(self.update)
-        self.timer.start(5000//nc)
+        vs,vm = vitesses
+        self.timer_serpent = QTimer()
+        self.timer_serpent.timeout.connect(self.update_serpent)
+        self.timer_serpent.start(int(5000/(vs*nc)))
+        self.timer_monstre = QTimer()
+        self.timer_monstre.timeout.connect(self.update_monstre)
+        self.timer_monstre.start(int(5000/(vm*nc)))
+        
+        self.periode_timer = int(5000/(vs*nc))
+        self.periodes_update = []
         
     def keyPressEvent(self, event):
         
@@ -78,13 +235,14 @@ class Jeu(QMainWindow):
         
         elif key == Qt.Key_P: # On passe le jeu en pause / continue
             if self.pause:
-                self.timer.start()
+                self.timer_serpent.start()
+                self.timer_monstre.start()
             else:
-                self.timer.stop()
+                self.timer_serpent.stop()
+                self.timer_monstre.stop()
             self.pause = 1 - self.pause
         
-        else:            
-            
+        else:
             if key == Qt.Key_Z:
                 dl2,dc2 = (-1,0) # Variable contenant la nouvelle direction 
             elif key == Qt.Key_D:
@@ -101,22 +259,26 @@ class Jeu(QMainWindow):
                 event.ignore()
                 
         
-    def update(self):
+    def update_serpent(self):
         
+
         mapZ,mapJ = self.map_zones,self.map_joueurs
         self.serpent.deplace(mapZ,mapJ,self.environnement)
-        
+        self.test_collision()
         if self.serpent.etat == 2: # On rentre à nouveau dans la zone safe donc on grise la zone dessinée.
             self.grise_zone()
             self.serpent.etat = 0
-            
+        #qApp.processEvents() # Nécéssaire pour éviter le clignotement entre deux frames.
+        #self.setCentralWidget(self.environnement)
+        
+    def update_monstre(self):
+        t1 = time.time()
+        mapZ,mapJ = self.map_zones,self.map_joueurs
         self.monstre.genere_direction(mapZ,mapJ)
         self.monstre.deplace(mapZ,mapJ,self.environnement)
-        
-        qApp.processEvents() # Nécéssaire pour éviter le clignotement entre deux frames.
-        self.setCentralWidget(self.environnement)
-        
-        
+        #qApp.processEvents() # Nécéssaire pour éviter le clignotement entre deux frames.
+        #self.setCentralWidget(self.environnement)    
+        self.periodes_update.append((time.time()-t1)*1000)
         
     def grise_zone(self):
         
@@ -147,7 +309,21 @@ class Jeu(QMainWindow):
         
         self.serpent.corps = []
         
-
+    def test_collision(self):
+        
+        corps = self.serpent.corps.copy()
+        #tete = [self.serpent.position]
+        if corps != []:
+            corps.pop()
+        # Test si le serpent se mord la queue.
+        if self.serpent.position in corps:
+            self.timer_serpent.stop()
+            self.timer_monstre.stop()
+            self.pause = 1 - self.pause
+        #test si le monstre mange le corps du serpent
+        #elif self.monstre.position in serpent:
+         #   self.close()
+        return
 
 # =============================================================================
 #                            Classe Personnage
@@ -434,21 +610,19 @@ def zone_a_tester(contour):
 #                               Fonction Main
 # =============================================================================
 
-
-
-def main(nl,nc,marge,px):
-    
-    """ Lance le jeu et affiche l'interface graphique."""
+        
+def main():
     
     app = QApplication(sys.argv)
-    jeu = Jeu(nl,nc,marge,px)
-    M = jeu.map_zones
-    jeu.show()
-    #jeu.resize(1600,900)
-    app.exec_()
-    #sys.exit(app.exec_())
-    return M
+    screen_resolution = app.desktop().screenGeometry()
+    screen_width, screen_height = screen_resolution.width(), screen_resolution.height()
+    interface_jeu = InterfaceJeu(screen_width,screen_height)
+    interface_jeu.show()
+    interface_jeu.resize(324,496)
+    app.exec()
+    return interface_jeu.jeu
 
-    
-M = main(100,200,10,5)
-#print(M)
+if __name__ == '__main__':
+    jeu = main()
+    print(jeu.periode_timer)
+    print(sum(jeu.periodes_update)/len(jeu.periodes_update))
