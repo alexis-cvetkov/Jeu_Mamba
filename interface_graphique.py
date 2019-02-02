@@ -161,7 +161,7 @@ class OptionsJeu(QWidget):
 
 import numpy as np
 import sys
-from random import choice
+from random import *
 
 from PyQt5.QtCore import *
 from PyQt5.QtGui import *
@@ -274,7 +274,7 @@ class Jeu(QMainWindow):
     def update_monstre(self):
         t1 = time.time()
         mapZ,mapJ = self.map_zones,self.map_joueurs
-        self.monstre.genere_direction(mapZ,mapJ)
+        self.monstre.genere_direction(mapZ,mapJ,self.serpent,'avancée')
         self.monstre.deplace(mapZ,mapJ,self.environnement)
         #qApp.processEvents() # Nécéssaire pour éviter le clignotement entre deux frames.
         #self.setCentralWidget(self.environnement)    
@@ -413,25 +413,84 @@ class Personnage():
         
         self.old_direction = self.direction_instant
         
+    def possible_directions(self,map_zones):
+        l,c = self.position
+        nl,nc = map_zones.shape
+        D = [(1,0),(-1,0),(0,1),(0,-1)] # Bas, Haut, Droite, Gauche.
+        dx,dy = self.direction_instant
+        D.remove((-dx,-dy))
+        directions = D.copy()
+        for d in D:
+            dl,dc = d
+            p = (l+dl)%nl,(c+dc)%nc
+            if not map_zones[p]:
+                directions.remove(d)
+        return directions
     
-    def genere_direction(self,map_zones,map_joueurs,IA='aleatoire'):
+    def genere_direction(self,map_zones,map_joueurs,serpent,IA='aleatoire'):
         
-        if IA == 'aleatoire':
+        D = self.possible_directions(map_zones)#return the possible directions list
+        
+        if IA == 'aleatoire' :
             
-            l,c = self.position
-            nl,nc = map_zones.shape
-            D = [(1,0),(-1,0),(0,1),(0,-1)] # Bas, Haut, Droite, Gauche.
-            directions_possibles = D.copy()
-            for d in D:
-                dl,dc = d
-                p = (l+dl)%nl,(c+dc)%nc
-                if not map_zones[p]:
-                    directions_possibles.remove(d)
-            if directions_possibles == []: # Toutes les cases autour sont grises.
-                self.change_direction((0,0)) # Le monstre est immobile.
+            if random() > 0.95:#5% chances of changing the direction
+                
+                if D == []: # entity surrounded by gray cases.
+                    self.change_direction((0,0)) # immobile monster
+                else:
+                     self.change_direction(choice(D))
+            else:#case when the monster doesn't need to change direction
+                if self.direction_instant not in D:#test if it can continue in the same direction
+                    if D == []:
+                        self.change_direction(choice(D))
+                    else:
+                        self.change_direction(choice(D))
+                
+            
+        elif IA == 'intermédiaire' :#pathFindinf only if the serpent is in the unsafe zone 
+
+        
+            if map_zones[serpent.position] == 1:#serpent is in the unsafe zone => pathFinding behaviour
+                
+                self.change_direction(path_finding2(map_zones,self.position,serpent.corps))
+                
+             
+            else: #Serpent is in the safe zone => random behaviour
+                self.genere_direction(map_zones,map_joueurs,'aleatoire')
+                #position_finale  = path_finding(map_zones, serpent.position,)
+                
+        elif IA == 'avancée':
+            
+            if map_zones[serpent.position] == 1:#serpent is in the unsafe zone => pathFinding behaviour
+                
+                self.change_direction(path_finding2(map_zones,self.position,serpent.corps))
+                
             else:
-                 self.change_direction(choice(directions_possibles))
+                
+                self.change_direction(path_finding2(map_zones,self.position,path_finding3(map_zones, serpent.position)))
+                
             return           
+    
+#    def path_finding(grid,depart,arrivee):
+#    
+#    queue = [[depart]]
+#    seen = set([depart])
+#    nl,nc = grid.shape
+#    
+#    while queue:       
+#        
+#        path = queue.pop(0)
+#        x, y = path[-1]
+#        
+#        if (x,y) == arrivee:
+#            return path
+#        
+#        for x2, y2 in ((x+1,y), (x-1,y), (x,y+1), (x,y-1)):            
+#            if 0 <= x2 < nl and 0 <= y2 < nc and grid[x2][y2] == 1 and (x2, y2) not in seen:
+#                queue.append(path + [(x2, y2)])
+#                seen.add((x2, y2))
+
+    
     
     def test_collisions(self,new_position):
         pass
@@ -589,6 +648,46 @@ def path_finding(grid,depart,arrivee):
         
         for x2, y2 in ((x+1,y), (x-1,y), (x,y+1), (x,y-1)):            
             if 0 <= x2 < nl and 0 <= y2 < nc and grid[x2][y2] != 1 and (x2, y2) not in seen:
+                queue.append(path + [(x2, y2)])
+                seen.add((x2, y2))
+                
+def path_finding2(grid,depart,arrivee):
+    
+    queue = [[depart]]
+    seen = set([depart])
+    nl,nc = grid.shape
+    
+    while queue:       
+        
+        path = queue.pop(0)
+        x, y = path[-1]
+        
+        if (x,y) in arrivee:
+            x0, y0 = depart
+            x1, y1 = path[1]
+            return (x1-x0, y1-y0)
+        
+        for x2, y2 in ((x+1,y), (x-1,y), (x,y+1), (x,y-1)):            
+            if 0 <= x2 < nl and 0 <= y2 < nc and grid[x2][y2] == 1 and (x2, y2) not in seen:
+                queue.append(path + [(x2, y2)])
+                seen.add((x2, y2))
+
+def path_finding3(grid,depart):
+    
+    queue = [[depart]]
+    seen = set([depart])
+    nl,nc = grid.shape
+    
+    while queue:       
+        
+        path = queue.pop(0)
+        x, y = path[-1]
+        
+        if grid[x,y] == 1:
+            return [(x, y)]
+        
+        for x2, y2 in ((x+1,y), (x-1,y), (x,y+1), (x,y-1)):            
+            if 0 <= x2 < nl and 0 <= y2 < nc  and (x2, y2) not in seen:
                 queue.append(path + [(x2, y2)])
                 seen.add((x2, y2))
 
