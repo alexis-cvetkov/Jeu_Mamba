@@ -232,10 +232,15 @@ class ControleurJeu():
                     dist = path_finding(map_zones,position,[monstre.position],
                                         zone_autorisee=1,output='length')
                     n_coups = max(dist//2 - 1,3)
-                    serpent.direction_list = path_finding_max(terrain,position,0,
-                                                           n_coups)
-                    print(serpent.direction_list)
-                serpent.direction = serpent.direction_list.pop(0)
+                    serpent.direction_list = path_finding_max(terrain,position,
+                                                              0, n_coups)
+                    #print(serpent.direction_list)
+                if serpent.direction_list is None:
+                    serpent.IA = 'Random'
+                    self.change_direction_serpent()
+                    serpent.IA = 'Intermediate'
+                else:
+                    serpent.direction = serpent.direction_list.pop(0)
 
         return 
     
@@ -444,13 +449,13 @@ class ControleurJeu():
         serpent = self.serpent
         monstre = self.monstre
         map_zones = self.terrain.zones
-        map_size = map_zones.size
+        nl, nc = map_zones.shape
         
         # --- Collision du serpent avec lui même
         if serpent.position in serpent.corps:
             print('GAME ENDS')
             print('Coverage of the captured area: {}'.format(
-                    1-map_zones.sum()/(0.64*map_size)))
+                    1-map_zones.sum()/(0.8*nc*(nl-0.2*nc))))
             if self.interface == 'Graphique':
                 self.pause = 1 - self.pause
                 
@@ -458,7 +463,7 @@ class ControleurJeu():
         elif monstre.position in serpent.corps:
             print('GAME ENDS')
             print('Coverage of the captured area: {}'.format(
-                    1-map_zones.sum()/(0.64*map_size)))
+                    1-map_zones.sum()/(0.8*nc*(nl-0.2*nc))))
             if self.interface == 'Graphique':
                 self.pause = 1 - self.pause
         return
