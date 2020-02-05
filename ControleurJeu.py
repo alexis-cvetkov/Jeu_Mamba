@@ -171,7 +171,7 @@ class ControleurJeu():
         directions_possibles = D.copy()
         
         # --- On retire les directions menant au corps du serpent
-        if serpent.IA != 'Humain':
+        if serpent.IA != 'Human':
             for direction in D:
                 dl,dc = direction
                 new_position = (l+dl)%nl,(c+dc)%nc
@@ -184,9 +184,9 @@ class ControleurJeu():
         
         """
         Change la direction du serpent en fonction du type du joueur qui le
-        contrôle (Humain ou IA plus ou moins complexe).
+        contrôle (Human ou IA plus ou moins complexe).
         
-        IA = Humain: on change manuellement la direction du serpent
+        IA = Human: on change manuellement la direction du serpent
         avec le paramètre direction.
         
         IA = Aléatoire: le serpent change aléatoirement de direction avec
@@ -205,8 +205,8 @@ class ControleurJeu():
         position = serpent.position
         directions_possibles = self.directions_possibles_serpent()
         
-        # --- Si le joueur est Humain on change manuellement sa direction
-        if IA == 'Humain':
+        # --- Si le joueur est Human on change manuellement sa direction
+        if IA == 'Human':
             if direction in directions_possibles:
                 serpent.direction = direction
             else:
@@ -214,7 +214,7 @@ class ControleurJeu():
         
         # --- IA qui change aléatoirement de direction avec une proba 0.05
         # ou lorsque le Serpent n'a pas d'alternatives
-        elif IA == 'Aléatoire' :
+        elif IA == 'Random' :
             if (random() > 0.90) or (serpent.direction not in directions_possibles):
                 direction = choice(directions_possibles)
                 serpent.direction = direction 
@@ -222,11 +222,11 @@ class ControleurJeu():
         # --- IA intermédiaire qui se déplace aléatoire dans sa zone . Quand
         # elle entre dans la zone du monstre elle trouve un chemin vers sa zone
         # assez court pour ne pas se faire manger par le monstre
-        elif IA == 'Intermédiaire' :
+        elif IA == 'Intermediate' :
             if map_zones[position] == 0:
-                serpent.IA = 'Aléatoire'
+                serpent.IA = 'Random'
                 self.change_direction_serpent()
-                serpent.IA = 'Intermédiaire'
+                serpent.IA = 'Intermediate'
             else:
                 if serpent.direction_list == []:
                     dist = path_finding(map_zones,position,[monstre.position],
@@ -361,9 +361,9 @@ class ControleurJeu():
         
         """
         Change la direction du monstre en fonction du type du joueur qui le
-        contrôle (Humain ou IA plus ou moins complexe).
+        contrôle (Human ou IA plus ou moins complexe).
         
-        IA = Humain: on change manuellement la direction du monstre
+        IA = Human: on change manuellement la direction du monstre
         avec le paramètre direction.
         
         IA = Aléatoire: le monstre change aléatoirement de direction avec
@@ -388,8 +388,8 @@ class ControleurJeu():
         position = monstre.position
         directions_possibles = self.directions_possibles_monstre()
 
-        # --- Cas où le Personnage est Humain
-        if IA == 'Humain':
+        # --- Cas où le Personnage est Human
+        if IA == 'Human':
             if direction in directions_possibles:
                 monstre.direction = direction
             elif monstre.direction in directions_possibles:
@@ -399,7 +399,7 @@ class ControleurJeu():
         
         # --- IA qui change aléatoirement de direction avec une proba 0.05
         # ou lorsque le monstre n'a pas d'alternatives
-        if IA == 'Aléatoire' :
+        if IA == 'Random' :
             if (random() > 0.9) or (monstre.direction not in directions_possibles):
                 directions_possibles.remove((0,0))
                 if directions_possibles != []:
@@ -410,18 +410,18 @@ class ControleurJeu():
                 
         # --- IA intermédiaire qui fonce sur le serpent lorsqu'il est dans la
         # zone du monstre et qui est aléatoire sinon
-        elif IA == 'Intermédiaire' :        
+        elif IA == 'Intermediate' :        
             if map_zones[serpent.position] == 1:
                 direction = path_finding(map_zones,position,serpent.corps+[serpent.position],1,output='direction')
                 monstre.direction = direction                            
             else:
-                self.monstre.IA = 'Aléatoire'
+                self.monstre.IA = 'Random'
                 self.change_direction_monstre()
-                self.monstre.IA = 'Intermédiaire'
+                self.monstre.IA = 'Intermediate'
         
         # --- IA avancée qui ajoute à l'IA intermédiaire la capacité de suivre
         # le serpent même lorsqu'il est dans sa zone
-        elif IA == 'Avancée':            
+        elif IA == 'Advanced':            
             if map_zones[serpent.position] == 1:
                 direction = path_finding(map_zones,position,serpent.corps+[serpent.position],1,output='direction')
                 monstre.direction = direction                            
@@ -443,16 +443,22 @@ class ControleurJeu():
         
         serpent = self.serpent
         monstre = self.monstre
+        map_zones = self.terrain.zones
+        map_size = map_zones.size
         
         # --- Collision du serpent avec lui même
         if serpent.position in serpent.corps:
-            print('COLLISION DU SERPENT AVEC LUI MEME')
+            print('GAME ENDS')
+            print('Coverage of the captured area: {}'.format(
+                    1-map_zones.sum()/(0.64*map_size)))
             if self.interface == 'Graphique':
                 self.pause = 1 - self.pause
                 
         # --- Collision du serpent avec le monstre
         elif monstre.position in serpent.corps:
-            print('COLLISION DU SERPENT AVEC LE MONSTRE')
+            print('GAME ENDS')
+            print('Coverage of the captured area: {}'.format(
+                    1-map_zones.sum()/(0.64*map_size)))
             if self.interface == 'Graphique':
                 self.pause = 1 - self.pause
         return
@@ -481,7 +487,7 @@ class ControleurJeu():
         elif key_annexe == Qt.Key_P: # On passe le jeu en pause / continue
             self.pause = 1 - self.pause
         
-        if not self.pause and self.serpent.IA == 'Humain':
+        if not self.pause and self.serpent.IA == 'Human':
             if key_serpent == Qt.Key_Z:
                 direction_serpent = (-1,0) 
             elif key_serpent == Qt.Key_D:
@@ -491,7 +497,7 @@ class ControleurJeu():
             elif key_serpent == Qt.Key_Q:
                 direction_serpent = (0,-1)
             
-        if not self.pause and self.monstre.IA == 'Humain':
+        if not self.pause and self.monstre.IA == 'Human':
             if key_monstre == Qt.Key_I:
                 direction_monstre = (-1,0) 
             elif key_monstre == Qt.Key_L:
@@ -503,8 +509,8 @@ class ControleurJeu():
             elif key_monstre == Qt.Key_H:
                 direction_monstre = (0,0)
         
-        if self.serpent.IA == 'Humain':
+        if self.serpent.IA == 'Human':
             self.change_direction_serpent(direction_serpent)
-        if self.monstre.IA == 'Humain':
+        if self.monstre.IA == 'Human':
             self.change_direction_monstre(direction_monstre)
         return
