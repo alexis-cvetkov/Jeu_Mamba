@@ -8,6 +8,7 @@ Created on Tue Feb 19 14:47:01 2019
 
 import ControleurJeu
 import InterfaceJeu
+from Tools import *
 
 # =============================================================================
 #                   Start the game in graphical mode
